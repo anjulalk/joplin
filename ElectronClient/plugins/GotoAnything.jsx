@@ -37,6 +37,7 @@ class Dialog extends React.PureComponent {
 			keywords: [],
 			listType: BaseModel.TYPE_NOTE,
 			showHelp: false,
+			highlightKeywords: true,
 		};
 
 		this.styles_ = {};
@@ -125,7 +126,7 @@ class Dialog extends React.PureComponent {
 		}, 10);
 	}
 
-	makeSearchQuery(query) {
+	makeTitleSearchQuery(query) {
 		const splitted = query.split(' ');
 		const output = [];
 		for (let i = 0; i < splitted.length; i++) {
@@ -133,6 +134,19 @@ class Dialog extends React.PureComponent {
 			if (!s) continue;
 
 			output.push(`title:${s}*`);
+		}
+
+		return output.join(' ');
+	}
+
+	makeBodySearchQuery(query) {
+		const splitted = query.split(' ');
+		const output = [];
+		for (let i = 0; i < splitted.length; i++) {
+			const s = splitted[i].trim();
+			if (!s) continue;
+
+			output.push(`body:${s}*`);
 		}
 
 		return output.join(' ');
@@ -150,6 +164,7 @@ class Dialog extends React.PureComponent {
 			let results = [];
 			let listType = null;
 			let searchQuery = '';
+			let highlightKeywords = true;
 
 			if (this.state.query.indexOf('#') === 0) { // TAGS
 				listType = BaseModel.TYPE_TAG;
@@ -165,9 +180,21 @@ class Dialog extends React.PureComponent {
 					const path = Folder.folderPathString(this.props.folders, row.parent_id);
 					results[i] = Object.assign({}, row, { path: path ? path : '/' });
 				}
+			} else if (this.state.query.indexOf('/') === 0) { // BODY
+				listType = BaseModel.TYPE_NOTE;
+				searchQuery = this.makeBodySearchQuery(this.state.query);
+				results = await SearchEngine.instance().search(searchQuery);
+
+				highlightKeywords = false;
+
+				for (let i = 0; i < results.length; i++) {
+					const row = results[i];
+					const path = Folder.folderPathString(this.props.folders, row.parent_id);
+					results[i] = Object.assign({}, row, { path: path });
+				}
 			} else { // NOTES
 				listType = BaseModel.TYPE_NOTE;
-				searchQuery = this.makeSearchQuery(this.state.query);
+				searchQuery = this.makeTitleSearchQuery(this.state.query);
 				results = await SearchEngine.instance().search(searchQuery);
 
 				for (let i = 0; i < results.length; i++) {
@@ -190,6 +217,7 @@ class Dialog extends React.PureComponent {
 				results: results,
 				keywords: this.keywords(searchQuery),
 				selectedItemId: selectedItemId,
+				highlightKeywords: highlightKeywords,
 			});
 		}
 	}
@@ -246,7 +274,9 @@ class Dialog extends React.PureComponent {
 		const theme = themeStyle(this.props.theme);
 		const style = this.style();
 		const rowStyle = item.id === this.state.selectedItemId ? style.rowSelected : style.row;
-		const titleHtml = surroundKeywords(this.state.keywords, item.title, `<span style="font-weight: bold; color: ${theme.colorBright};">`, '</span>');
+		const titleHtml = this.state.highlightKeywords
+			? surroundKeywords(this.state.keywords, item.title, `<span style="font-weight: bold; color: ${theme.colorBright};">`, '</span>')
+			: `<span style="font-weight: bold; color: ${theme.colorBright};">${item.title}</span>`;
 
 		const pathComp = !item.path ? null : <div style={style.rowPath}>{item.path}</div>;
 
@@ -310,7 +340,6 @@ class Dialog extends React.PureComponent {
 			marginTop: 5,
 			height: Math.min(itemHeight * this.state.results.length, 7 * itemHeight),
 		};
-
 		return (
 			<ItemList
 				ref={this.itemListRef}
@@ -325,15 +354,15 @@ class Dialog extends React.PureComponent {
 	render() {
 		const theme = themeStyle(this.props.theme);
 		const style = this.style();
-		const helpComp = !this.state.showHelp ? null : <div style={style.help}>{_('Type a note title to jump to it. Or type # followed by a tag name, or @ followed by a notebook name.')}</div>;
+		const helpComp = !this.state.showHelp ? null : <div style={style.help}>{_('Type a note title to jump to it. Or type # followed by a tag name, or @ followed by a notebook name, or / followed by note content.')}</div>;
 
 		return (
 			<div style={theme.dialogModalLayer}>
 				<div style={style.dialogBox}>
 					{helpComp}
 					<div style={style.inputHelpWrapper}>
-						<input autoFocus type="text" style={style.input} ref={this.inputRef} value={this.state.query} onChange={this.input_onChange} onKeyDown={this.input_onKeyDown}/>
-						<HelpButton onClick={this.helpButton_onClick}/>
+						<input autoFocus type="text" style={style.input} ref={this.inputRef} value={this.state.query} onChange={this.input_onChange} onKeyDown={this.input_onKeyDown} />
+						<HelpButton onClick={this.helpButton_onClick} />
 					</div>
 					{this.renderList()}
 				</div>
