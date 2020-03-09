@@ -100,7 +100,7 @@ class HeaderComponent extends React.Component {
 	}
 
 	determineButtonLabelState() {
-		const mediaQuery = window.matchMedia(`(max-width: ${550 * this.props.zoomFactor}px)`);
+		const mediaQuery = window.matchMedia(`(max-width: ${700 * this.props.zoomFactor}px)`);
 		const showButtonLabels = !mediaQuery.matches;
 
 		if (this.state.showButtonLabels !== showButtonLabels) {
